@@ -203,13 +203,8 @@ if __name__ == "__main__":
         pygame.draw.rect(card_surface, BLACK, card_surface.get_rect(), 2)
         
         # Apply flip animation by scaling width
-        if flip_angle <= 90:
-            scale_x = (90 - flip_angle) / 90
-        else:
-            scale_x = (flip_angle - 90) / 90
-        
         flip_angle_rad = flip_angle * math.pi / 180
-        scaled_width = int(CARD_WIDTH * abs(math.sin(flip_angle_rad)))
+        scaled_width = int(CARD_WIDTH * abs(math.cos(flip_angle_rad)))
         
         if scaled_width > 0:
             flipped_surface = pygame.transform.scale(card_surface, (scaled_width, CARD_HEIGHT))
