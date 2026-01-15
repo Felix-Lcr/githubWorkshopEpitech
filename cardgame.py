@@ -123,6 +123,16 @@ if __name__ == "__main__":
         def update_hover(self, pos):
             self.hovered = self.rect.collidepoint(pos)
     
+<<<<<<< HEAD
+    while True:
+        print(f"Your cards: {player_cards if player_cards else 'None'}")
+        print(f"Cards remaining in deck: {deck.cards_remaining()}\n")
+        print("Options:")
+        print("  1. Draw a card")
+        print("  2. Leave the game")
+        print("  3. Reshuffle deck (cards returned to deck)")
+        print(" and NO, all of them at once is NOT an option !")
+=======
     # Create buttons
     draw_button = Button(50, 600, 150, 60, "Draw Card")
     reshuffle_button = Button(250, 600, 150, 60, "Reshuffle")
@@ -136,6 +146,7 @@ if __name__ == "__main__":
     while running:
         clock.tick(60)
         mouse_pos = pygame.mouse.get_pos()
+>>>>>>> origin/main
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
