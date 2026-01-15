@@ -78,7 +78,7 @@ class Deck:
 class AnimatedCard:
     """Represents a card being animated from deck to player hand."""
     
-    def __init__(self, card, start_x, start_y, end_x, end_y, duration=30):
+    def __init__(self, card, start_x, start_y, end_x, end_y, duration=30, to_deck=False):
         self.card = card
         self.start_x = start_x
         self.start_y = start_y
@@ -86,13 +86,24 @@ class AnimatedCard:
         self.end_y = end_y
         self.duration = duration
         self.elapsed = 0
-        self.flip_angle = 180
+        self.to_deck = to_deck
+        
+        # If card is going to deck, start at 0° (front), end at 180° (back)
+        # If card is coming from deck, start at 180° (back), end at 0° (front)
+        if to_deck:
+            self.flip_angle = 0
+        else:
+            self.flip_angle = 180
     
     def update(self):
         """Update animation progress."""
         self.elapsed += 1
-        # Flip effect: start at 180 degrees (back), flip to 0 degrees (front)
-        self.flip_angle = 180 - (self.elapsed / self.duration) * 180
+        if self.to_deck:
+            # Flip effect: start at 0 degrees (front), flip to 180 degrees (back)
+            self.flip_angle = (self.elapsed / self.duration) * 180
+        else:
+            # Flip effect: start at 180 degrees (back), flip to 0 degrees (front)
+            self.flip_angle = 180 - (self.elapsed / self.duration) * 180
     
     def is_complete(self):
         """Check if animation is complete."""
@@ -259,10 +270,14 @@ if __name__ == "__main__":
                         message = "No cards left in deck!"
                     message_timer = 120
                 elif reshuffle_button.is_clicked(mouse_pos):
-                    deck.reset()
+                    # Animate all player cards back to the deck
+                    for i, card in enumerate(player_cards):
+                        card_x = 50 + i * 70
+                        card_y = 200
+                        anim = AnimatedCard(card, card_x, card_y, DECK_X, DECK_Y, duration=30, to_deck=True)
+                        animated_cards.append(anim)
                     player_cards = []
-                    animated_cards = []
-                    message = "Deck reshuffled! Cards returned to deck."
+                    message = "Shuffling cards back to deck..."
                     message_timer = 120
                 elif quit_button.is_clicked(mouse_pos):
                     running = False
@@ -271,8 +286,17 @@ if __name__ == "__main__":
         for anim in animated_cards[:]:
             anim.update()
             if anim.is_complete():
-                # Add card to player cards only when animation is done
-                player_cards.append(anim.card)
+                if anim.to_deck:
+                    # Card animation returning to deck is complete
+                    # Check if all animations are done
+                    if all(a.is_complete() for a in animated_cards):
+                        # All cards returned, reset deck
+                        deck.reset()
+                        message = "Deck reshuffled! Cards returned to deck."
+                        message_timer = 120
+                else:
+                    # Card animation from deck is complete, add to player hand
+                    player_cards.append(anim.card)
                 animated_cards.remove(anim)
         
         # Update button hover states
