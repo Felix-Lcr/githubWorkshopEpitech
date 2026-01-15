@@ -1,4 +1,5 @@
 import random
+import math
 import pygame
 from enum import Enum
 
@@ -74,6 +75,39 @@ class Deck:
         self._initialize_deck()
 
 
+class AnimatedCard:
+    """Represents a card being animated from deck to player hand."""
+    
+    def __init__(self, card, start_x, start_y, end_x, end_y, duration=30):
+        self.card = card
+        self.start_x = start_x
+        self.start_y = start_y
+        self.end_x = end_x
+        self.end_y = end_y
+        self.duration = duration
+        self.elapsed = 0
+        self.flip_angle = 0
+    
+    def update(self):
+        """Update animation progress."""
+        self.elapsed += 1
+        # Flip effect: rotate 180 degrees over animation duration
+        self.flip_angle = (self.elapsed / self.duration) * 180
+    
+    def is_complete(self):
+        """Check if animation is complete."""
+        return self.elapsed >= self.duration
+    
+    def get_position(self):
+        """Get current position using easing."""
+        progress = self.elapsed / self.duration
+        # Use ease-out cubic for smooth deceleration
+        eased_progress = 1 - ((1 - progress) ** 3)
+        x = self.start_x + (self.end_x - self.start_x) * eased_progress
+        y = self.start_y + (self.end_y - self.start_y) * eased_progress
+        return x, y
+
+
 # Example usage
 if __name__ == "__main__":
     pygame.init()
@@ -91,9 +125,9 @@ if __name__ == "__main__":
     BLACK = (0, 0, 0)
     RED = (220, 20, 60)
     GRAY = (200, 200, 200)
+    DARK_GREEN = (25, 100, 25)
     
     # Fonts - use system font for Unicode support
-    # Try multiple fonts that are likely to support Unicode card symbols
     font_large = pygame.font.SysFont('dejavusans,freesans,liberationsans,arial', 48)
     font_small = pygame.font.SysFont('dejavusans,freesans,liberationsans,arial', 24)
     font_card = pygame.font.SysFont('dejavusans,freesans,liberationsans,arial', 32, bold=True)
@@ -101,6 +135,13 @@ if __name__ == "__main__":
     # Game state
     deck = Deck()
     player_cards = []
+    animated_cards = []
+    
+    # Deck position on screen
+    DECK_X = 850
+    DECK_Y = 250
+    CARD_WIDTH = 60
+    CARD_HEIGHT = 90
     
     # Button class
     class Button:
@@ -133,6 +174,52 @@ if __name__ == "__main__":
     message = "Welcome to Card Game! Click 'Draw Card' to begin."
     message_timer = 0
     
+    def draw_card_visual(surface, x, y, card=None, flip_angle=0):
+        """Draw a card at the given position with optional flip animation."""
+        card_rect = pygame.Rect(x, y, CARD_WIDTH, CARD_HEIGHT)
+        
+        # Create a surface for the card
+        card_surface = pygame.Surface((CARD_WIDTH, CARD_HEIGHT))
+        
+        if flip_angle > 90:
+            # Back of card (show green)
+            card_surface.fill(DARK_GREEN)
+        else:
+            # Front of card
+            card_surface.fill(WHITE)
+            if card:
+                # Determine card color based on suit
+                if card.suit in [Suit.HEARTS, Suit.DIAMONDS]:
+                    card_color = RED
+                else:
+                    card_color = BLACK
+                
+                # Draw card text
+                card_text = font_card.render(str(card), True, card_color)
+                text_rect = card_text.get_rect(center=(CARD_WIDTH // 2, CARD_HEIGHT // 2))
+                card_surface.blit(card_text, text_rect)
+        
+        # Draw border
+        pygame.draw.rect(card_surface, BLACK, card_surface.get_rect(), 2)
+        
+        # Apply flip animation by scaling width
+        if flip_angle <= 90:
+            scale_x = (90 - flip_angle) / 90
+        else:
+            scale_x = (flip_angle - 90) / 90
+        
+        flip_angle_rad = flip_angle * math.pi / 180
+        scaled_width = int(CARD_WIDTH * abs(math.sin(flip_angle_rad)))
+        
+        if scaled_width > 0:
+            flipped_surface = pygame.transform.scale(card_surface, (scaled_width, CARD_HEIGHT))
+            surface.blit(flipped_surface, (x + (CARD_WIDTH - scaled_width) // 2, y))
+        else:
+            # Card is flipping, show back
+            back_surface = pygame.Surface((1, CARD_HEIGHT))
+            back_surface.fill(DARK_GREEN)
+            surface.blit(back_surface, (x + CARD_WIDTH // 2, y))
+    
     while running:
         clock.tick(60)
         mouse_pos = pygame.mouse.get_pos()
@@ -144,6 +231,12 @@ if __name__ == "__main__":
                 if draw_button.is_clicked(mouse_pos):
                     card = deck.draw_card()
                     if card:
+                        # Calculate end position for the card
+                        card_x = 50 + len(player_cards) * 70
+                        card_y = 200
+                        # Create animation
+                        anim = AnimatedCard(card, DECK_X, DECK_Y, card_x, card_y, duration=30)
+                        animated_cards.append(anim)
                         player_cards.append(card)
                         message = f"You drew: {card}"
                     else:
@@ -152,10 +245,17 @@ if __name__ == "__main__":
                 elif reshuffle_button.is_clicked(mouse_pos):
                     deck.reset()
                     player_cards = []
+                    animated_cards = []
                     message = "Deck reshuffled! Cards returned to deck."
                     message_timer = 120
                 elif quit_button.is_clicked(mouse_pos):
                     running = False
+        
+        # Update animations
+        for anim in animated_cards[:]:
+            anim.update()
+            if anim.is_complete():
+                animated_cards.remove(anim)
         
         # Update button hover states
         draw_button.update_hover(mouse_pos)
@@ -173,9 +273,16 @@ if __name__ == "__main__":
         title = font_large.render("Card Game", True, WHITE)
         screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 20))
         
-        # Deck info
-        deck_text = font_small.render(f"Cards in deck: {deck.cards_remaining()}", True, WHITE)
-        screen.blit(deck_text, (50, 100))
+        # Deck info and visual
+        deck_text = font_small.render(f"Deck: {deck.cards_remaining()}", True, WHITE)
+        screen.blit(deck_text, (DECK_X - 20, DECK_Y + CARD_HEIGHT + 10))
+        
+        # Draw deck visual
+        draw_card_visual(screen, DECK_X, DECK_Y)
+        
+        # Draw deck shadow for 3D effect
+        for i in range(1, 4):
+            pygame.draw.rect(screen, BLACK, (DECK_X + i, DECK_Y + i, CARD_WIDTH, CARD_HEIGHT), 1)
         
         # Player cards
         player_text = font_small.render(f"Your cards ({len(player_cards)}):", True, WHITE)
@@ -184,23 +291,13 @@ if __name__ == "__main__":
         # Display player cards in a row
         card_x = 50
         for i, card in enumerate(player_cards):
-            # Draw card background
-            card_rect = pygame.Rect(card_x, 200, 60, 90)
-            pygame.draw.rect(screen, WHITE, card_rect)
-            pygame.draw.rect(screen, BLACK, card_rect, 2)
-            
-            # Determine card color based on suit
-            if card.suit in [Suit.HEARTS, Suit.DIAMONDS]:
-                card_color = RED
-            else:
-                card_color = BLACK
-            
-            # Draw card text with Unicode support and appropriate color
-            card_text = font_card.render(str(card), True, card_color)
-            text_rect = card_text.get_rect(center=card_rect.center)
-            screen.blit(card_text, text_rect)
-            
+            draw_card_visual(screen, card_x, 200, card)
             card_x += 70
+        
+        # Draw animated cards
+        for anim in animated_cards:
+            x, y = anim.get_position()
+            draw_card_visual(screen, x, y, anim.card, anim.flip_angle)
         
         # Message display
         if message_timer > 0:
